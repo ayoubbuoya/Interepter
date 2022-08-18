@@ -1,12 +1,14 @@
-
+import string
 
 # CONSTANTS
-
-
+LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+LETTERS = string.ascii_letters
 DIGITS = "0123456789"
+LETTERS_DIGITS = LETTERS + DIGITS
 TAB = '\t'
 NEWLINE = '\n'
 WHITESPACE = " "
+KEYWORDS = ["var", "const"]
 
 # Available Tokens
 INT_T = "INT"
@@ -18,6 +20,11 @@ DIV_T = "DIV"
 LPAREN_T = "LPAREN"
 RPAREN_T = "RPAREN"
 EOF_T = "EOF"  # END OF FILE
+
+# Variables Tokens
+KEYWORD_T = "KEYWORD"
+IDENTIFIER_T = "IDENTIFIER"
+EQUAL_T = "EQUAL"
 
 ######################
 #####  Position  #####
@@ -138,7 +145,11 @@ class Token:
         if end_pos:
             self.end_pos = end_pos
 
-    # How to represent it when printing it
+    # function to check are the given type and value equals to token .. or not
+    def matches(self, type, value):
+        return self.type == type and self.value == value
+
+        # How to represent it when printing it
 
     def __repr__(self) -> str:
         if self.value:
@@ -198,6 +209,13 @@ class Lexer:
             # Numbers
             elif self.current in DIGITS:
                 tokens.append(self.get_number_tok())
+            # variables related stuff
+            elif self.current == "=":
+                tokens.append(Token(EQUAL_T, start_pos=self.pos))
+                self.next()
+            elif self.current in LETTERS:
+                tokens.append(self.get_identifier())
+
             else:
                 # raise char error
                 err_start_pos = self.pos.copy_pos()
@@ -209,6 +227,19 @@ class Lexer:
         tokens.append(Token(EOF_T, start_pos=self.pos))
 
         return tokens, None
+
+    def get_identifier(self):
+        idn = ""
+        start_pos = self.pos.copy_pos()
+
+        while self.current != None and self.current in LETTERS_DIGITS + "_":
+            idn += self.current
+            self.next()
+
+        if idn in KEYWORDS:
+            return Token(KEYWORD_T, idn, start_pos, self.pos)
+        else:
+            return Token(IDENTIFIER_T, idn, start_pos, self.pos)
 
     def get_number_tok(self):
 
@@ -291,7 +322,26 @@ class UnaryOpNode:
         return f"({self.op}, {self.node})"
 
 
-# Parse Result
+class VarAccessNode:
+    def __init__(self, name) -> None:
+        self.var_name = name
+        self.start_pos = self.var_name.start_pos
+        self.end_pos = self.var_name.end_pos
+
+    def __repr__(self) -> str:
+        return str(self.var_name)
+
+
+class VarAssignNode:
+    def __init__(self, name, value) -> None:
+        self.var_name = name
+        self.value = value
+        self.start_pos = self.var_name.start_pos
+        self.end_pos = self.var_name.end_pos
+
+    def __repr__(self) -> str:
+        return f"{self.var_name} : {self.value}"
+
 # Instead of returning node we return parser result.Also, It keeps track of errors and nodes
 
 
@@ -365,6 +415,9 @@ class Parser:
                     self.current.start_pos, self.current.end_pos,
                     "Expected ' ) '"
                 ))
+        elif tok.type == IDENTIFIER_T:
+            res.register(self.next())
+            return res.success(VarAccessNode(tok))
 
         return res.failure(InvalidSyntaxError(tok.start_pos, tok.end_pos, "Expected Integer Or Float"))
 
@@ -389,6 +442,34 @@ class Parser:
         return self.bin_op(self.factor, (MULT_T, DIV_T))
 
     def expr(self):
+        res = ParseResult()
+
+        # skip var and identidier and equals
+        if self.current.matches(KEYWORD_T, "var"):
+            res.register(self.next())
+
+            if self.current.type != IDENTIFIER_T:
+
+                return res.failure(InvalidSyntaxError(
+                    self.current.start_pos, self.current.end_pos,
+                    "Expected Identifier"
+                ))
+            else:
+                var_name = self.current
+                res.register(self.next())
+
+                if self.current.type != EQUAL_T:
+                    return res.failure(InvalidSyntaxError(
+                        self.current.start_pos, self.current.end_pos,
+                        "Expected Equal Sign ' = '"
+                    ))
+                else:
+                    res.register(self.next())
+                    expr = res.register(self.expr())
+                    if res.err:
+                        return res
+                    return res.success(VarAssignNode(var_name, expr))
+
         return self.bin_op(self.term, (PLUS_T, MINUS_T))
 
     def parse(self):
@@ -416,6 +497,7 @@ class Context:
         self.display = display_name
         self.parent = parent
         self.parent_pos = parent_pos
+        self.vars = None
 
 
 #####################
@@ -487,6 +569,31 @@ class Number:
     def __repr__(self) -> str:
         return str(self.value)
 
+####################
+# VarsTable
+###################
+
+# used to store all used variable values
+
+
+class Vars:
+    def __init__(self) -> None:
+        self.vars = {}
+        self.parent = None
+
+    def get_var(self, name):
+        # key == name , default value if key not exist
+        value = self.vars.get(name, None)
+        if value == None and self.parent:
+            return self.parent.get(name)
+        return value
+
+    def set_var(self, name, value):
+        self.vars[name] = value
+
+    def remove_var(self, name):
+        del self.vars[name]
+
 
 class Interepter:
     # Visit Nodes (binopnde , number node , ..)
@@ -498,6 +605,10 @@ class Interepter:
             return self.visit_bin_op_node(node, context)
         elif node_type == "UnaryOpNode":
             return self.visit_unary_op_node(node, context)
+        elif node_type == "VarAccessNode":
+            return self.visit_var_access_node(node, context)
+        elif node_type == "VarAssignNode":
+            return self.visit_var_assign_node(node, context)
         else:
             return self.no_visit(node, context)
 
@@ -549,10 +660,35 @@ class Interepter:
             num.set_pos(node.start_pos, node.end_pos)
             return res.success(num)
 
+    def visit_var_access_node(self, node, context):
+        res = RTResult()
+        var_name = node.var_name.value
+        value = context.vars.get_var(var_name)
+
+        if not value:
+            return res.failure(RunTimeError(
+                node.start_pos, node.end_pos,
+                f"'{var_name}' is undefined", context
+            ))
+        return res.success(value)
+
+    def visit_var_assign_node(self, node, context):
+        res = RTResult()
+        var_name = node.var_name.value
+        # define the proper node for value
+        var_value = res.register(self.visit(node.value, context))
+        if res.err:
+            return res
+        context.vars.set_var(var_name, var_value)
+        return res.success(var_value)
+
     def no_visit(self, node, context):
         raise Exception(f"No Visit {type(node).__name__} Undedined")
 
+
 # Run
+global_vars = Vars()
+global_vars.set_var("null", Number(0))
 
 
 def run(txt, file_name="<stdin>"):
@@ -560,16 +696,20 @@ def run(txt, file_name="<stdin>"):
     tokens, error = lexer.get_tokens()
 
     if error:
+        print(error)
         return None, error
 
     parser = Parser(tokens)
     # generate Abstract Data Tree
     ast = parser.parse()
     if ast.err:
+
         return None, ast.err
+
     # Execute Program
     interepter = Interepter()
     context = Context("<Program>")
+    context.vars = global_vars
     result = interepter.visit(ast.node, context)
 
     return result.value, result.err
