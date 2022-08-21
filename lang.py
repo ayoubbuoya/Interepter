@@ -1,5 +1,6 @@
 import string
 
+
 # CONSTANTS
 LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 LETTERS = string.ascii_letters
@@ -17,6 +18,7 @@ PLUS_T = "PLUS"
 MINUS_T = "MINUS"
 MULT_T = "MULT"
 DIV_T = "DIV"
+POWER_T = "POWER"
 LPAREN_T = "LPAREN"
 RPAREN_T = "RPAREN"
 EOF_T = "EOF"  # END OF FILE
@@ -199,6 +201,9 @@ class Lexer:
             elif self.current == "/":
                 tokens.append(Token(DIV_T, start_pos=self.pos))
                 self.next()
+            elif self.current == "^":
+                tokens.append(Token(POWER_T, start_pos=self.pos))
+                self.next()
             # Parenthesis
             elif self.current == "(":
                 tokens.append(Token(LPAREN_T, start_pos=self.pos))
@@ -349,24 +354,27 @@ class ParseResult:
     def __init__(self) -> None:
         self.err = None
         self.node = None
+        # track how many times we advance in a specific function that have a parse result
+        self.next_counter = 0
 
     # takes another parse result or node
 
     def register(self, res):
-        # isinstance check if the res object with type ParseResult
-        if isinstance(res, ParseResult):
-            if res.err:
-                self.err = res.err
-            return res.node
+        self.next_counter += res.next_counter
+        if res.err:
+            self.err = res.err
+        return res.node
 
-        return res
+    def register_next(self):
+        self.next_counter += 1
 
     def success(self, node):
         self.node = node
         return self
 
     def failure(self, err):
-        self.err = err
+        if not self.err or self.next_counter == 0:
+            self.err = err
         return self
 
 
@@ -385,30 +393,34 @@ class Parser:
         # need it for register function
         return self.current
 
+    def parse(self):
+        res = self.expr()
+        if not res.err and self.current.type != EOF_T:
+            return res.failure(InvalidSyntaxError(
+                self.current.start_pos, self.current.end_pos,
+                "Expected int, float, identifier, '+', '*', '/', '-'"
+            ))
+        return res
+
     # Begin The Gram
 
-    def factor(self):
+    def atom(self):
         res = ParseResult()
         tok = self.current
 
-        if tok.type in (MINUS_T, PLUS_T):
-            res.register(self.next())
-            factor = res.register(self.factor())
-            if res.err:
-                return res
-            return res.success(UnaryOpNode(tok, factor))
-
-        elif tok.type in (INT_T, FLOAT_T):
-            res.register(self.next())
+        if tok.type in (INT_T, FLOAT_T):
+            res.register_next()
+            self.next()
             return res.success(NumberNode(tok))
-
         elif tok.type == LPAREN_T:
-            res.register(self.next())
+            res.register_next()
+            self.next()
             expr = res.register(self.expr())
             if res.err:
                 return res
             if self.current.type == RPAREN_T:
-                res.register(self.next())
+                res.register_next()
+                self.next()
                 return res.success(expr)
             else:
                 return res.failure(InvalidSyntaxError(
@@ -416,21 +428,45 @@ class Parser:
                     "Expected ' ) '"
                 ))
         elif tok.type == IDENTIFIER_T:
-            res.register(self.next())
+            res.register_next()
+            self.next()
             return res.success(VarAccessNode(tok))
 
-        return res.failure(InvalidSyntaxError(tok.start_pos, tok.end_pos, "Expected Integer Or Float"))
+        return res.failure(InvalidSyntaxError(
+            tok.start_pos, tok.end_pos,
+            "Expected  int, float, '+', '*', '/', '-'"
+        ))
 
-    def bin_op(self, func, ops):
+    def power(self):
+        return self.bin_op(self.atom, (POWER_T, ), self.factor)
+
+    def factor(self):
         res = ParseResult()
-        left = res.register(func())  # contains first number value
+        tok = self.current
+
+        if tok.type in (MINUS_T, PLUS_T):
+            res.register_next()
+            self.next()
+            factor = res.register(self.factor())
+            if res.err:
+                return res
+            return res.success(UnaryOpNode(tok, factor))
+
+        return self.power()
+
+    def bin_op(self, func1, ops, func2=None):
+        if func2 == None:
+            func2 = func1
+        res = ParseResult()
+        left = res.register(func1())  # contains first number value
         if res.err:
             return res
         # check for the operation when we finich
         while self.current.type in ops:
             tok_op = self.current
-            res.register(self.next())
-            right = res.register(func())
+            res.register_next()
+            self.next()
+            right = res.register(func2())
             if res.err:
                 return res
             # result and the left in the next loop if there is * or /
@@ -446,7 +482,8 @@ class Parser:
 
         # skip var and identidier and equals
         if self.current.matches(KEYWORD_T, "var"):
-            res.register(self.next())
+            res.register_next()
+            self.next()
 
             if self.current.type != IDENTIFIER_T:
 
@@ -456,7 +493,8 @@ class Parser:
                 ))
             else:
                 var_name = self.current
-                res.register(self.next())
+                res.register_next()
+                self.next()
 
                 if self.current.type != EQUAL_T:
                     return res.failure(InvalidSyntaxError(
@@ -464,23 +502,21 @@ class Parser:
                         "Expected Equal Sign ' = '"
                     ))
                 else:
-                    res.register(self.next())
+                    res.register_next()
+                    self.next()
                     expr = res.register(self.expr())
                     if res.err:
                         return res
                     return res.success(VarAssignNode(var_name, expr))
-
-        return self.bin_op(self.term, (PLUS_T, MINUS_T))
-
-    def parse(self):
-        res = self.expr()
-        if res.err and self.current.type != EOF_T:
-            return res.failure(InvalidSyntaxError(
-                self.current.start_pos, self.current.end_pos,
-                "Expected ' + ' or ' * ' or ' / ' or ' - '"
-            ))
-
-        return res
+        else:
+            node = res.register(self.bin_op(self.term, (PLUS_T, MINUS_T)))
+            # overwriting the err msg
+            if res.err:
+                return res.failure(InvalidSyntaxError(
+                    self.current.start_pos, self.current.end_pos,
+                    "Expected 'var', int, float, identifier, '+', '*', '/', '-'"
+                ))
+            return res.success(node)
 
 
 ###################
@@ -543,7 +579,13 @@ class Number:
         self.context = context
         return self
 
+    def copy_num(self):
+        copy = Number(self.value)
+        copy.set_pos(self.start_pos, self.end_pos)
+        copy.set_context(self.context)
+        return copy
     # Math Function
+
     def add_to(self, other_num):
         if isinstance(other_num, Number):
             return Number(self.value + other_num.value).set_context(self.context), None
@@ -565,6 +607,10 @@ class Number:
                     self.context
                 )
             return Number(self.value / other_num.value).set_context(self.context), None
+
+    def power_by(self, other_num):
+        if isinstance(other_num, Number):
+            return Number(self.value ** other_num.value).set_context(self.context), None
 
     def __repr__(self) -> str:
         return str(self.value)
@@ -639,6 +685,8 @@ class Interepter:
             result, error = left.mult_to(right)
         elif node.op.type == DIV_T:
             result, error = left.div_by(right)
+        elif node.op.type == POWER_T:
+            result, error = left.power_by(right)
 
         if error:
             return res.failure(error)
@@ -670,6 +718,8 @@ class Interepter:
                 node.start_pos, node.end_pos,
                 f"'{var_name}' is undefined", context
             ))
+        value = value.copy_num()
+        value.set_pos(node.start_pos, node.end_pos)
         return res.success(value)
 
     def visit_var_assign_node(self, node, context):
@@ -703,9 +753,7 @@ def run(txt, file_name="<stdin>"):
     # generate Abstract Data Tree
     ast = parser.parse()
     if ast.err:
-
         return None, ast.err
-
     # Execute Program
     interepter = Interepter()
     context = Context("<Program>")
