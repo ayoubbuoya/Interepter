@@ -1,4 +1,7 @@
+
 import string
+
+from django.forms import NullBooleanField
 
 
 # CONSTANTS
@@ -9,7 +12,13 @@ LETTERS_DIGITS = LETTERS + DIGITS
 TAB = '\t'
 NEWLINE = '\n'
 WHITESPACE = " "
-KEYWORDS = ["var", "const"]
+KEYWORDS = [
+    "var",
+    "const",
+    "not",
+    "or",
+    "and",
+]
 
 # Available Tokens
 INT_T = "INT"
@@ -27,6 +36,17 @@ EOF_T = "EOF"  # END OF FILE
 KEYWORD_T = "KEYWORD"
 IDENTIFIER_T = "IDENTIFIER"
 EQUAL_T = "EQUAL"
+
+# Comparison and gates  Tokens
+NOT_T = "NOT"
+GREAT_THAN_T = "GT"
+LESS_THAN_T = "LT"
+GREAT_EQUAL_T = "GE"
+LESS_EQUAL_T = "LE"
+DOUBLE_EQUAL_T = "EE"
+NOT_EQUAL_T = "NE"
+OR_T = "OR"
+
 
 ######################
 #####  Position  #####
@@ -132,6 +152,12 @@ class RunTimeError(Error):
     def __repr__(self):
         return f"{self.generate_traceback()}{self.err_name} : {self.err_details}\n\n{string_with_arrows(self.start_pos.ftxt, self.start_pos, self.end_pos)} "
 
+
+class ExpectedCharError(Error):
+    def __init__(self, start_pos, end_pos, error_details) -> None:
+        super().__init__(start_pos, end_pos, "Expected Character", error_details)
+
+
 # It is like variable that we control how to show it
 
 
@@ -215,12 +241,21 @@ class Lexer:
             elif self.current in DIGITS:
                 tokens.append(self.get_number_tok())
             # variables related stuff
-            elif self.current == "=":
-                tokens.append(Token(EQUAL_T, start_pos=self.pos))
-                self.next()
+
             elif self.current in LETTERS:
                 tokens.append(self.get_identifier())
-
+            # comparisons tokens
+            elif self.current == "!":
+                tok, err = self.get_not_equal_tok()
+                if err:
+                    return [], err
+                tokens.append(tok)
+            elif self.current == "=":
+                tokens.append(self.get_equal_tok())
+            elif self.current == "<":
+                tokens.append(self.get_less_than_tok())
+            elif self.current == ">":
+                tokens.append(self.get_great_than_tok())
             else:
                 # raise char error
                 err_start_pos = self.pos.copy_pos()
@@ -232,6 +267,46 @@ class Lexer:
         tokens.append(Token(EOF_T, start_pos=self.pos))
 
         return tokens, None
+
+    def get_great_than_tok(self):
+        start_pos = self.pos.copy_pos()
+        self.next()
+        if self.current == "=":
+            self.next()
+            return Token(GREAT_EQUAL_T, start_pos=start_pos, end_pos=self.pos)
+        else:
+            return Token(GREAT_THAN_T, start_pos=start_pos, end_pos=self.pos)
+
+    def get_less_than_tok(self):
+        start_pos = self.pos.copy_pos()
+        self.next()
+        if self.current == "=":
+            self.next()
+            return Token(LESS_EQUAL_T, start_pos=start_pos, end_pos=self.pos)
+        else:
+            return Token(LESS_THAN_T, start_pos=start_pos, end_pos=self.pos)
+
+    def get_equal_tok(self):
+        start_pos = self.pos.copy_pos()
+        self.next()
+        if self.current == "=":
+            self.next()
+            return Token(DOUBLE_EQUAL_T, start_pos=start_pos, end_pos=self.pos)
+        else:
+            return Token(EQUAL_T, start_pos=start_pos, end_pos=self.pos)
+
+    def get_not_equal_tok(self):
+        start_pos = self.pos.copy_pos()
+        self.next()
+
+        if self.current == "=":
+            self.next()
+            return Token(NOT_EQUAL_T, start_pos=start_pos, end_pos=self.pos), None
+        else:
+            return None, ExpectedCharError(
+                start_pos, self.pos,
+                "'=' (after '!')"
+            )
 
     def get_identifier(self):
         idn = ""
@@ -276,10 +351,6 @@ class Lexer:
 
 ## End Lexering ##
 
-# Language Syntax
-    # factor : single num
-    # term : factor (* /) fator
-    # Expression : term operation(+ -) term
 
 # Parsing is About prganize toks to tree data structures
 
@@ -462,7 +533,8 @@ class Parser:
         if res.err:
             return res
         # check for the operation when we finich
-        while self.current.type in ops:
+        # the after or added to make function supports keywords
+        while self.current.type in ops or (self.current.type, self.current.value) in ops:
             tok_op = self.current
             res.register_next()
             self.next()
@@ -476,6 +548,34 @@ class Parser:
 
     def term(self):
         return self.bin_op(self.factor, (MULT_T, DIV_T))
+
+    def arithm_expr(self):
+        return self.bin_op(self.term, (PLUS_T, MINUS_T))
+
+    def compare_expr(self):
+        res = ParseResult()
+        if self.current.matches(KEYWORD_T, "not"):
+            op_tok = self.current
+            res.register_next()
+            self.next()
+            node = res.register(self.compare_expr())
+            if res.err:
+                return res
+            return res.success(UnaryOpNode(op_tok, node))
+        else:
+            ops = (
+                DOUBLE_EQUAL_T, NOT_EQUAL_T, LESS_EQUAL_T,
+                GREAT_EQUAL_T, LESS_THAN_T, GREAT_THAN_T
+            )
+            node = res.register(self.bin_op(self.arithm_expr, ops))
+            if res.err:
+                # Overwrite err message
+                return res.failure(InvalidSyntaxError(
+                    self.current.start_pos, self.current.end_pos,
+                    "Expected  int, float, '+', '*', '/', '-', 'not'"
+                ))
+
+            return res.success(node)
 
     def expr(self):
         res = ParseResult()
@@ -509,7 +609,9 @@ class Parser:
                         return res
                     return res.success(VarAssignNode(var_name, expr))
         else:
-            node = res.register(self.bin_op(self.term, (PLUS_T, MINUS_T)))
+            # node = res.register(self.bin_op(self.term, (PLUS_T, MINUS_T)))
+            node = res.register(self.bin_op(
+                self.compare_expr, ((KEYWORD_T, "and"), (KEYWORD_T, "or"))))
             # overwriting the err msg
             if res.err:
                 return res.failure(InvalidSyntaxError(
@@ -566,8 +668,8 @@ class Number:
     def __init__(self, value) -> None:
         self.value = value
 
-        self.start_pos = None
-        self.end_pos = None
+        self.set_pos()
+        self.set_context()
 
     def set_pos(self, start_pos=None, end_pos=None):
         self.start_pos = start_pos
@@ -611,6 +713,60 @@ class Number:
     def power_by(self, other_num):
         if isinstance(other_num, Number):
             return Number(self.value ** other_num.value).set_context(self.context), None
+    # comparison functions
+
+    def get_comparison_eq(self, other_num):
+        if isinstance(other_num, Number):
+            result = Number(int(self.value == other_num.value))
+            result.set_context(self.context)
+            return result, None
+
+    def get_comparison_ne(self, other_num):
+        if isinstance(other_num, Number):
+            result = Number(int(self.value != other_num.value))
+            result.set_context(self.context)
+            return result, None
+
+    def get_comparison_lt(self, other_num):
+        if isinstance(other_num, Number):
+            result = Number(int(self.value < other_num.value))
+            result.set_context(self.context)
+            return result, None
+
+    def get_comparison_gt(self, other_num):
+        if isinstance(other_num, Number):
+            result = Number(int(self.value > other_num.value))
+            result.set_context(self.context)
+            return result, None
+
+    def get_comparison_le(self, other_num):
+        if isinstance(other_num, Number):
+            result = Number(int(self.value <= other_num.value))
+            result.set_context(self.context)
+            return result, None
+
+    def get_comparison_ge(self, other_num):
+        if isinstance(other_num, Number):
+            result = Number(int(self.value >= other_num.value))
+            result.set_context(self.context)
+            return result, None
+
+    def and_this(self, other_num):
+        if isinstance(other_num, Number):
+            result = Number(int(self.value and other_num.value))
+            result.set_context(self.context)
+            return result, None
+
+    def or_this(self, other_num):
+        if isinstance(other_num, Number):
+            result = Number(int(self.value or other_num.value))
+            result.set_context(self.context)
+            return result, None
+
+    def not_(self):
+        result = Number(1 if self.value == 0 else 0)
+        result.set_context(self.context)
+        return result, None
 
     def __repr__(self) -> str:
         return str(self.value)
@@ -687,6 +843,22 @@ class Interepter:
             result, error = left.div_by(right)
         elif node.op.type == POWER_T:
             result, error = left.power_by(right)
+        elif node.op.type == LESS_EQUAL_T:
+            result, error = left.get_comparison_le(right)
+        elif node.op.type == GREAT_EQUAL_T:
+            result, error = left.get_comparison_ge(right)
+        elif node.op.type == LESS_THAN_T:
+            result, error = left.get_comparison_lt(right)
+        elif node.op.type == GREAT_THAN_T:
+            result, error = left.get_comparison_gt(right)
+        elif node.op.type == NOT_EQUAL_T:
+            result, error = left.get_comparison_ne(right)
+        elif node.op.type == DOUBLE_EQUAL_T:
+            result, error = left.get_comparison_eq(right)
+        elif node.op.matches(KEYWORD_T, "and"):
+            result, error = left.and_this(right)
+        elif node.op.matches(KEYWORD_T, "or"):
+            result, error = left.or_this(right)
 
         if error:
             return res.failure(error)
@@ -702,6 +874,8 @@ class Interepter:
             return res
         if node.op.type == MINUS_T:
             num, error = num.mult_to(Number(-1))
+        elif node.op.matches(KEYWORD_T, "not"):
+            num, error = num.not_()
         if error:
             return res.failure(error)
         else:
@@ -739,16 +913,16 @@ class Interepter:
 # Run
 global_vars = Vars()
 global_vars.set_var("null", Number(0))
+global_vars.set_var("true", Number(1))
+global_vars.set_var("false", Number(0))
 
 
 def run(txt, file_name="<stdin>"):
     lexer = Lexer(txt, file_name)
     tokens, error = lexer.get_tokens()
-
     if error:
         print(error)
         return None, error
-
     parser = Parser(tokens)
     # generate Abstract Data Tree
     ast = parser.parse()
