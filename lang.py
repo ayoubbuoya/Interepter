@@ -1,8 +1,4 @@
-
 import string
-
-from django.forms import NullBooleanField
-
 
 # CONSTANTS
 LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -18,6 +14,10 @@ KEYWORDS = [
     "not",
     "or",
     "and",
+    "if",
+    "elif",
+    "else",
+    "then"
 ]
 
 # Available Tokens
@@ -418,6 +418,15 @@ class VarAssignNode:
     def __repr__(self) -> str:
         return f"{self.var_name} : {self.value}"
 
+
+class IFNode():
+    def __init__(self, cases, else_case) -> None:
+        self.cases = cases
+        self.else_case = else_case
+
+        self.start_pos = self.cases[0][0].start_pos  # condition of first case
+        self.end_pos = (self.else_case or self.cases[-1][0]).end_pos
+
 # Instead of returning node we return parser result.Also, It keeps track of errors and nodes
 
 
@@ -474,6 +483,58 @@ class Parser:
         return res
 
     # Begin The Gram
+    def if_expr(self):
+        res = ParseResult()
+        cases = []
+        else_case = None
+
+        res.register_next()
+        self.next()
+        condition = res.register(self.expr())
+        if res.err:
+            return res
+        if not self.current.matches(KEYWORD_T, "then"):
+            return res.failure(InvalidSyntaxError(
+                self.current.pos_start, self.current.pos_end,
+                "Expected 'THEN'"
+            ))
+        else:
+            res.register_next()
+            self.next()
+
+            do = res.register(self.expr())
+            if res.err:
+                return res
+            cases.append((condition, do))
+
+            while self.current.matches(KEYWORD_T, "elif"):
+                res.register_next()
+                self.next()
+
+                condition = res.register(self.expr())
+                if res.err:
+                    return res
+                if not self.current.matches(KEYWORD_T, "then"):
+                    return res.failure(InvalidSyntaxError(
+                        self.current.pos_start, self.current.pos_end,
+                        "Expected 'THEN'"
+                    ))
+                else:
+                    res.register_next()
+                    self.next()
+                    do = res.register(self.expr())
+                if res.err:
+                    return res
+                cases.append((condition, do))
+
+            if self.current.matches(KEYWORD_T, "else"):
+                res.register_next()
+                self.next()
+                else_case = res.register(self.expr())
+                if res.err:
+                    return res
+
+        return res.success(IFNode(cases, else_case))
 
     def atom(self):
         res = ParseResult()
@@ -502,7 +563,11 @@ class Parser:
             res.register_next()
             self.next()
             return res.success(VarAccessNode(tok))
-
+        elif tok.matches(KEYWORD_T, "if"):
+            if_expr = res.register(self.if_expr())
+            if res.err:
+                return res
+            return res.success(if_expr)
         return res.failure(InvalidSyntaxError(
             tok.start_pos, tok.end_pos,
             "Expected  int, float, '+', '*', '/', '-'"
@@ -768,6 +833,12 @@ class Number:
         result.set_context(self.context)
         return result, None
 
+    def is_true(self):
+        return self.value != 0
+
+    def is_false(self):
+        return self.value == 0
+
     def __repr__(self) -> str:
         return str(self.value)
 
@@ -811,6 +882,8 @@ class Interepter:
             return self.visit_var_access_node(node, context)
         elif node_type == "VarAssignNode":
             return self.visit_var_assign_node(node, context)
+        elif node_type == "IFNode":
+            return self.visit_if_node(node, context)
         else:
             return self.no_visit(node, context)
 
@@ -906,6 +979,26 @@ class Interepter:
         context.vars.set_var(var_name, var_value)
         return res.success(var_value)
 
+    def visit_if_node(self, node, context):
+        res = RTResult()
+
+        for (condition, do) in node.cases:
+            cond_val = res.register(self.visit(condition, context))
+            if res.err:
+                return res
+            if cond_val.is_true():
+                do_val = res.register(self.visit(do, context))
+                if res.err:
+                    return res
+                return res.success(do_val)
+        if node.else_case:
+            else_val = res.register(self.visit(node.else_case, context))
+            if res.err:
+                return res
+            return res.success(else_val)
+
+        return res.success(None)
+
     def no_visit(self, node, context):
         raise Exception(f"No Visit {type(node).__name__} Undedined")
 
@@ -935,3 +1028,5 @@ def run(txt, file_name="<stdin>"):
     result = interepter.visit(ast.node, context)
 
     return result.value, result.err
+
+
