@@ -1,11 +1,11 @@
-import lang
+from Interepter.interepter import run
+
 
 while True:
-    cmd = input("lang > ")
+    cmd = input("lang >> ")
     if cmd == "q":
         break
-    result, error = lang.run(cmd)
-
+    result, error = run(cmd)
     if error:
         print(error)
     elif result:

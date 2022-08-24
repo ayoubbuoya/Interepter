@@ -23,3 +23,17 @@
 ###### &emsp; &emsp; lang > var price = if age >= 20 then 10 elif age < 20 and age > 10 then 5 else 2
 
 ###### &emsp; &emsp; 10
+
+###### &emsp; - For and While Loop :
+
+###### &emsp; &emsp; lang >> for i = 0 to 20 do var r = i
+
+###### &emsp; &emsp; lang >> r
+
+###### &emsp; &emsp; 19
+
+###### &emsp; &emsp; lang >> while r < 50 do var r = r + 1
+
+###### &emsp; &emsp; lang >> r
+
+###### &emsp; &emsp; 50
