@@ -95,6 +95,19 @@ class Lexer:
                 tokens.append(self.get_less_than_tok())
             elif self.current == ">":
                 tokens.append(self.get_great_than_tok())
+            # functions
+            elif self.current == ",":
+                tokens.append(Token(COMMA_T, start_pos=self.pos))
+                self.next()
+            elif self.current == ":":
+                tokens.append(Token(COLON_T, start_pos=self.pos))
+                self.next()
+            elif self.current == "{":
+                tokens.append(Token(L_CURLY_BRACK_T, start_pos=self.pos))
+                self.next()
+            elif self.current == "}":
+                tokens.append(Token(R_CURLY_BRACK_T, start_pos=self.pos))
+                self.next()
             else:
                 # raise char error
                 err_start_pos = self.pos.copy_pos()

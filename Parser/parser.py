@@ -1,3 +1,4 @@
+from token import COMMA
 from Nodes.nodes import *
 from Tokens_Keywords.toks_keys import *
 from Errors.errors import *
@@ -56,6 +57,82 @@ class Parser:
         return res
 
     # Begin The Gram
+    def func_def(self):
+        res = ParseResult()
+
+        res.register_next()
+        self.next()
+
+        if self.current.type == IDENTIFIER_T:
+            func_name = self.current
+            res.register_next()
+            self.next()
+            if self.current.type != LPAREN_T:
+                return res.failure(InvalidSyntaxError(
+                    self.current.start_pos, self.current.end_pos,
+                    "Expected '('"
+                ))
+
+        else:
+            func_name = None
+            if self.current.type != LPAREN_T:
+                return res.failure(InvalidSyntaxError(
+                    self.current.start_pos, self.current.end_pos,
+                    "Expected Identider or '('"
+                ))
+
+        res.register_next()
+        self.next()
+        args = []
+        if self.current.type == IDENTIFIER_T:
+            args.append(self.current)
+            res.register_next()
+            self.next()
+            while self.current.type == COMMA_T:
+                res.register_next()
+                self.next()
+                if self.current.type != IDENTIFIER_T:
+                    return res.failure(InvalidSyntaxError(
+                        self.current.start_pos, self.current.end_pos,
+                        "Expected Identider"
+                    ))
+                args.append(self.current)
+                res.register_next()
+                self.next()
+            if self.current.type != RPAREN_T:
+                return res.failure(InvalidSyntaxError(
+                    self.current.start_pos, self.current.end_pos,
+                    "Expected ',' or ')'"
+                ))
+        else:
+            if self.current.type != RPAREN_T:
+                return res.failure(InvalidSyntaxError(
+                    self.current.start_pos, self.current.end_pos,
+                    "Expected Identifier or ')'"
+                ))
+
+        res.register_next()
+        self.next()
+        if self.current.type != L_CURLY_BRACK_T:
+            return res.failure(InvalidSyntaxError(
+                self.current.start_pos, self.current.end_pos,
+                "Expected '{'"
+            ))
+        res.register_next()
+        self.next()
+        body = res.register(self.expr())
+        if res.err:
+            return res
+        if self.current.type != R_CURLY_BRACK_T:
+            return res.failure(InvalidSyntaxError(
+                self.current.start_pos, self.current.end_pos,
+                "Expected '}'"
+            ))
+        res.register_next()
+        self.next()
+
+        return res.success(FunctionNode(func_name, args, body))
+
     def while_expr(self):
         res = ParseResult()
 
@@ -66,7 +143,7 @@ class Parser:
             return res
         if not self.current.matches(KEYWORD_T, "do"):
             return res.failure(InvalidSyntaxError(
-                self.current.pos_start, self.current.pos_end,
+                self.current.start_pos, self.current.end_pos,
                 "Expected 'do'"
             ))
         res.register_next()
@@ -147,7 +224,7 @@ class Parser:
             return res
         if not self.current.matches(KEYWORD_T, "then"):
             return res.failure(InvalidSyntaxError(
-                self.current.pos_start, self.current.pos_end,
+                self.current.start_pos, self.current.end_pos,
                 "Expected 'THEN'"
             ))
         else:
@@ -168,7 +245,7 @@ class Parser:
                     return res
                 if not self.current.matches(KEYWORD_T, "then"):
                     return res.failure(InvalidSyntaxError(
-                        self.current.pos_start, self.current.pos_end,
+                        self.current.start_pos, self.current.end_pos,
                         "Expected 'THEN'"
                     ))
                 else:
@@ -230,14 +307,58 @@ class Parser:
             if res.err:
                 return res
             return res.success(while_expr)
+        # add functions
+        elif tok.matches(KEYWORD_T, "func"):
+            func_def = res.register(self.func_def())
+            if res.err:
+                return res
+            return res.success(func_def)
 
         return res.failure(InvalidSyntaxError(
             tok.start_pos, tok.end_pos,
-            "Expected  int, float, '+', '*', '/', '-'"
+            "Expected  int, float, '+', '*', '/', '-', 'if', 'for', 'while', 'func'"
         ))
 
+    def call_func(self):
+        res = ParseResult()
+
+        atom = res.register(self.atom())
+        if res.err:
+            return res
+        if self.current.type == LPAREN_T:
+            res.register_next()
+            self.next()
+            arg_nodes = []
+
+            if self.current.type == RPAREN_T:
+                res.register_next()
+                self.next()
+            else:
+                arg_nodes.append(res.register(self.expr()))
+                if res.err:
+                    return res.failure(InvalidSyntaxError(
+                        self.current.start_pos, self.current.end_pos,
+                        "Expected ')', 'var', 'if', 'for', 'while', 'func', int, float, identifier, '+', '-', '(' or 'not'"
+                    ))
+                while self.current.type == COMMA_T:
+                    res.register_next()
+                    self.next()
+                    arg_nodes.append(res.register(self.expr()))
+                    if res.err:
+                        return res
+                if self.current.type != RPAREN_T:
+                    return res.failure(InvalidSyntaxError(
+                        self.current.start_pos, self.current.end_pos,
+                        "Expected ')'or ','"
+                    ))
+                res.register_next()
+                self.next()
+            return res.success(CallFuncNode(atom, arg_nodes))
+
+        return res.success(atom)
+
     def power(self):
-        return self.bin_op(self.atom, (POWER_T, ), self.factor)
+        return self.bin_op(self.call_func, (POWER_T, ), self.factor)
 
     def factor(self):
         res = ParseResult()
@@ -344,6 +465,6 @@ class Parser:
             if res.err:
                 return res.failure(InvalidSyntaxError(
                     self.current.start_pos, self.current.end_pos,
-                    "Expected 'var', int, float, identifier, '+', '*', '/', '-'"
+                    "Expected 'var','if', 'for', 'while', 'func', int, float, identifier, '+', '*', '/', '-'"
                 ))
             return res.success(node)

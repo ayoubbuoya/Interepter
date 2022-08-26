@@ -1,3 +1,4 @@
+from DataTypes.function import Function
 from Lexer.lexer import Lexer
 from Parser.parser import Parser
 from Errors.errors import *
@@ -48,6 +49,10 @@ class Interepter:
             return self.visit_for_node(node, context)
         elif node_type == "WhileNode":
             return self.visit_while_node(node, context)
+        elif node_type == "FunctionNode":
+            return self.visit_func_def_node(node, context)
+        elif node_type == "CallFuncNode":
+            return self.visit_call_func_node(node, context)
         else:
             return self.no_visit(node, context)
 
@@ -129,7 +134,7 @@ class Interepter:
                 node.start_pos, node.end_pos,
                 f"'{var_name}' is undefined", context
             ))
-        value = value.copy_num()
+        value = value.copy()
         value.set_pos(node.start_pos, node.end_pos)
         return res.success(value)
 
@@ -211,20 +216,56 @@ class Interepter:
 
         return res.success(None)
 
+    def visit_func_def_node(self, node, context):
+        res = RTResult()
+
+        func_name = node.func_name.value if node.func_name else None
+        func_body = node.body
+        args_name = [arg_name.value for arg_name in node.args_name]
+        func_value = Function(func_name, args_name, func_body)
+        func_value.set_pos(node.start_pos, node.end_pos)
+        func_value.set_context(context)
+
+        if node.func_name:
+            context.vars.set_var(func_name, func_value)
+
+        return res.success(func_value)
+
+    def visit_call_func_node(self, node, context):
+        res = RTResult()
+
+        args = []
+        val_to_call = res.register(self.visit(node.func_to_call, context))
+        if res.err:
+            return res
+        val_to_call = val_to_call.copy()
+        val_to_call.set_pos(node.start_pos, node.end_pos)
+        # val_to_call.set_context(context)
+
+        for arg_node in node.func_args:
+            args.append(res.register(self.visit(arg_node, context)))
+            if res.err:
+                return res
+        value = res.register(val_to_call.execute(args))
+        if res.err:
+            return res
+
+        return res.success(value)
+
     def no_visit(self, node, context):
         raise Exception(f"No Visit {type(node).__name__} Undedined")
 
 
 class Vars:
-    def __init__(self) -> None:
+    def __init__(self, parent=None) -> None:
         self.vars = {}
-        self.parent = None
+        self.parent = parent
 
     def get_var(self, name):
         # key == name , default value if key not exist
         value = self.vars.get(name, None)
         if value == None and self.parent:
-            return self.parent.get(name)
+            return self.parent.get_var(name)
         return value
 
     def set_var(self, name, value):

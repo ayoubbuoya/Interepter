@@ -7,23 +7,6 @@ TAB = '\t'
 NEWLINE = '\n'
 WHITESPACE = " "
 
-# kEYWORDS
-KEYWORDS = [
-    "var",
-    "const",
-    "not",
-    "or",
-    "and",
-    "if",
-    "elif",
-    "else",
-    "then",
-    "for",
-    "while",
-    "do",
-    "to",
-    "step"
-]
 
 # Math Tokens
 INT_T = "INT"
@@ -51,3 +34,30 @@ LESS_EQUAL_T = "LE"
 DOUBLE_EQUAL_T = "EE"
 NOT_EQUAL_T = "NE"
 OR_T = "OR"
+
+# Function Tokens
+COMMA_T = "COMMA"
+COLON_T = "COLON"
+R_CURLY_BRACK_T = "R CURLY BRACKET"
+L_CURLY_BRACK_T = "L CURLY BRACKET"
+# ARROW_T = "ARROW_T" # -
+
+
+# kEYWORDS
+KEYWORDS = [
+    "var",
+    "const",
+    "not",
+    "or",
+    "and",
+    "if",
+    "elif",
+    "else",
+    "then",
+    "for",
+    "while",
+    "do",
+    "to",
+    "step",
+    "func",
+]

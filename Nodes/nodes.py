@@ -92,3 +92,38 @@ class ForNode:
 
     def __repr__(self) -> str:
         return f"{self.var_name} : [{self.start_val}, {self.end_val}], {self.step_val}: {self.body_val} "
+
+
+class FunctionNode:
+    def __init__(self, func_name, args_name, body) -> None:
+        self.func_name = func_name
+        self.args_name = args_name
+        self.body = body
+
+        if self.func_name:
+            self.start_pos = self.func_name.start_pos
+        elif len(self.args_name) > 0:
+            self.start_pos = self.args_name[0].start_pos
+        else:
+            self.start_pos = self.body.start_pos
+
+        self.end_pos = self.body.end_pos
+
+    def __repr__(self) -> str:
+        return str(self.body)
+
+
+class CallFuncNode:
+    def __init__(self, func_to_call, func_args) -> None:
+        self.func_to_call = func_to_call
+        self.func_args = func_args
+
+        self.start_pos = self.func_to_call.start_pos
+
+        if len(self.func_args) > 0:
+            self.end_pos = self.func_args[-1].end_pos
+        else:
+            self.end_pos = self.func_to_call.end_pos
+
+    def __repr__(self) -> str:
+        return f"{self.func_to_call}, {self.func_args} "

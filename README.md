@@ -37,3 +37,13 @@
 ###### &emsp; &emsp; lang >> r
 
 ###### &emsp; &emsp; 50
+
+###### &emsp; - Functions :
+
+###### &emsp; &emsp; lang >> func add (a, b) {a + b}
+
+###### &emsp; &emsp; function add
+
+###### &emsp; &emsp; lang >> add(5, 6)
+
+###### &emsp; &emsp; 11
