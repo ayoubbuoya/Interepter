@@ -138,3 +138,13 @@ class StringNode:
 
     def __repr__(self) -> str:
         return str(self.tok)
+
+
+class ListNode:
+    def __init__(self, element_nodes, start_pos, end_pos) -> None:
+        self.element_nodes = element_nodes
+        self.start_pos = start_pos
+        self.end_pos = end_pos
+
+    def __repr__(self) -> str:
+        return str(self.element_nodes)

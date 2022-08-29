@@ -57,3 +57,21 @@
 ###### &emsp; &emsp; lang >> greet("Ayoub")
 
 ###### &emsp; &emsp; "hello, Ayoub"
+
+###### &emsp; - Lists :
+
+###### &emsp; &emsp; lang >> [ 1, 2, 3 ] + 5
+
+###### &emsp; &emsp; [1, 2, 3, 5]
+
+###### &emsp; &emsp; lang >> [ 1, 2, 3] + [ 5, 4, 6 ]
+
+###### &emsp; &emsp; [1, 2, 3, 5, 4, 6]
+
+###### &emsp; &emsp; lang >> [1, 2, 3] - 1
+
+###### &emsp; &emsp; [1, 3]
+
+###### &emsp; &emsp; lang >> [1, 2, 3] / 2
+
+###### &emsp; &emsp; 3

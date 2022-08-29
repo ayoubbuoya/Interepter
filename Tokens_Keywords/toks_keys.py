@@ -44,6 +44,9 @@ L_CURLY_BRACK_T = "L CURLY BRACKET"
 # String Tokens
 STRING_T = "STRING"
 
+# Lists Tokens
+L_SQUARE_BRACK_T = "L SQUARE BRACKET"
+R_SQUARE_BRACK_T = "R SQUARE BRACKET"
 
 # kEYWORDS
 KEYWORDS = [
@@ -63,4 +66,3 @@ KEYWORDS = [
     "step",
     "func",
 ]
-

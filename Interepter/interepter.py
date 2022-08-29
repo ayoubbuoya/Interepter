@@ -1,10 +1,11 @@
+from DataTypes.number import Number
 from DataTypes.function import Function
 from DataTypes.string import String
+from DataTypes.list import List
 from Lexer.lexer import Lexer
 from Parser.parser import Parser
 from Errors.errors import *
 from Tokens_Keywords.toks_keys import *
-from DataTypes.number import Number
 
 
 class RTResult():
@@ -56,6 +57,8 @@ class Interepter:
             return self.visit_call_func_node(node, context)
         elif node_type == "StringNode":
             return self.visit_string_node(node, context)
+        elif node_type == "ListNode":
+            return self.visit_list_node(node, context)
         else:
             return self.no_visit(node, context)
 
@@ -173,6 +176,7 @@ class Interepter:
 
     def visit_while_node(self, node, context):
         res = RTResult()
+        elements = []
 
         while True:
             condition = res.register(self.visit(node.condition, context))
@@ -180,14 +184,18 @@ class Interepter:
                 return res
             if condition.is_false():
                 break
-            res.register(self.visit(node.body, context))
+            elements.append(res.register(self.visit(node.body, context)))
             if res.err:
                 return res
 
-        return res.success(None)
+        return res.success(
+            List(elements).set_context(context).set_pos(
+                node.start_pos, node.end_pos)
+        )
 
     def visit_for_node(self, node, context):
         res = RTResult()
+        elements = []
 
         start_val = res.register(self.visit(node.start_val, context))
         if res.err:
@@ -213,11 +221,15 @@ class Interepter:
             context.vars.set_var(node.var_name.value, Number(i))
             i += step_val.value
 
-            res.register(self.visit(node.body_val, context))
+            elements.append(res.register(self.visit(node.body_val, context)))
             if res.err:
                 return res
 
-        return res.success(None)
+        return res.success(
+            List(elements).set_context(context).set_pos(
+                node.start_pos, node.end_pos)
+
+        )
 
     def visit_func_def_node(self, node, context):
         res = RTResult()
@@ -261,6 +273,20 @@ class Interepter:
         value.set_pos(node.start_pos, node.end_pos)
         return RTResult().success(value)
 
+    def visit_list_node(self, node, context):
+        res = RTResult()
+        elements = []
+
+        for elem_node in node.element_nodes:
+            elements.append(res.register(self.visit(elem_node, context)))
+            if res.err:
+                return res
+        ret_list = List(elements)
+        ret_list.set_context(context)
+        ret_list.set_pos(node.start_pos, node.end_pos)
+
+        return res.success(ret_list)
+
     def no_visit(self, node, context):
         raise Exception(f"No Visit {type(node).__name__} Undedined")
 
@@ -296,10 +322,12 @@ def run(instruction, file_name="<stdin>"):
     tokens, error = lexer.get_tokens()
     if error:
         return None, error
+    # print(tokens)
     parser = Parser(tokens)
     ast = parser.parse()
     if ast.err:
         return None, ast.err
+    # print(ast.node)
     interepter = Interepter()
     context = Context("<Program>")
     context.vars = default_vars

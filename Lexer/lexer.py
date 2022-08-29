@@ -111,6 +111,13 @@ class Lexer:
             # strings
             elif self.current == '"':
                 tokens.append(self.get_string())
+            # lists
+            elif self.current == "[":
+                tokens.append(Token(L_SQUARE_BRACK_T, start_pos=self.pos))
+                self.next()
+            elif self.current == "]":
+                tokens.append(Token(R_SQUARE_BRACK_T, start_pos=self.pos))
+                self.next()
             else:
                 # raise char error
                 err_start_pos = self.pos.copy_pos()

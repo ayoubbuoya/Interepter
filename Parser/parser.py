@@ -57,6 +57,44 @@ class Parser:
         return res
 
     # Begin The Gram
+    def list_expr(self):
+        res = ParseResult()
+        element_nodes = []
+        start_pos = self.current.start_pos.copy_pos()
+
+        res.register_next()
+        self.next()
+
+        if self.current.type == R_SQUARE_BRACK_T:
+            res.register_next()
+            self.next()
+        else:
+            element_nodes.append(res.register(self.expr()))
+            if res.err:
+                return res.failure(InvalidSyntaxError(
+                    self.current.start_pos, self.current.end_pos,
+                    "Expected ']', 'var', 'if', 'for', 'while', 'func', int, float, identifier, '+', '-', '(', '[' or 'not'"
+                ))
+            while self.current.type == COMMA_T:
+                res.register_next()
+                self.next()
+                element_nodes.append(res.register(self.expr()))
+                if res.err:
+                    return res
+
+            if self.current.type != R_SQUARE_BRACK_T:
+                return res.failure(InvalidSyntaxError(
+                    self.current.start_pos, self.current.end_pos,
+                    "Expected ',' or ']'"
+                ))
+
+            res.register_next()
+            self.next()
+
+        return res.success(ListNode(
+            element_nodes, start_pos, self.current.end_pos.copy_pos()
+        ))
+
     def func_def(self):
         res = ParseResult()
 
@@ -318,10 +356,16 @@ class Parser:
             res.register_next()
             self.next()
             return res.success(StringNode(tok))
+        # list
+        elif tok.type == L_SQUARE_BRACK_T:
+            list_expr = res.register(self.list_expr())
+            if res.err:
+                return res
+            return res.success(list_expr)
 
         return res.failure(InvalidSyntaxError(
             tok.start_pos, tok.end_pos,
-            "Expected  int, float, '+', '*', '/', '-', 'if', 'for', 'while', 'func'"
+            "Expected  int, float, '+', '*', '/', '-','[', '(' 'if', 'for', 'while', 'func'"
         ))
 
     def call_func(self):
@@ -343,7 +387,7 @@ class Parser:
                 if res.err:
                     return res.failure(InvalidSyntaxError(
                         self.current.start_pos, self.current.end_pos,
-                        "Expected ')', 'var', 'if', 'for', 'while', 'func', int, float, identifier, '+', '-', '(' or 'not'"
+                        "Expected ')', 'var', 'if', 'for', 'while', 'func', int, float, identifier, '+', '-', '(', '[' or 'not'"
                     ))
                 while self.current.type == COMMA_T:
                     res.register_next()
@@ -426,7 +470,7 @@ class Parser:
                 # Overwrite err message
                 return res.failure(InvalidSyntaxError(
                     self.current.start_pos, self.current.end_pos,
-                    "Expected  int, float, '+', '*', '/', '-', 'not'"
+                    "Expected  int, float, '+', '*', '/', '-', '[', 'not'"
                 ))
 
             return res.success(node)
@@ -470,6 +514,6 @@ class Parser:
             if res.err:
                 return res.failure(InvalidSyntaxError(
                     self.current.start_pos, self.current.end_pos,
-                    "Expected 'var','if', 'for', 'while', 'func', int, float, identifier, '+', '*', '/', '-'"
+                    "Expected 'var','if', 'for', 'while', 'func', int, float, identifier, '+', '*', '/', '-', '[', '('"
                 ))
             return res.success(node)
