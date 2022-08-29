@@ -127,3 +127,14 @@ class CallFuncNode:
 
     def __repr__(self) -> str:
         return f"{self.func_to_call}, {self.func_args} "
+
+
+class StringNode:
+    def __init__(self, token) -> None:
+        self.tok = token
+
+        self.start_pos = self.tok.start_pos
+        self.end_pos = self.tok.end_pos
+
+    def __repr__(self) -> str:
+        return str(self.tok)

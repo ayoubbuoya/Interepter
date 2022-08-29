@@ -47,3 +47,13 @@
 ###### &emsp; &emsp; lang >> add(5, 6)
 
 ###### &emsp; &emsp; 11
+
+###### &emsp; - Strings :
+
+###### &emsp; &emsp; lang >> func greet (name) {"hello, " + name }
+
+###### &emsp; &emsp; function greet
+
+###### &emsp; &emsp; lang >> greet("Ayoub")
+
+###### &emsp; &emsp; "hello, Ayoub"

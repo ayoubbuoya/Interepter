@@ -313,6 +313,11 @@ class Parser:
             if res.err:
                 return res
             return res.success(func_def)
+        # string
+        elif tok.type == STRING_T:
+            res.register_next()
+            self.next()
+            return res.success(StringNode(tok))
 
         return res.failure(InvalidSyntaxError(
             tok.start_pos, tok.end_pos,

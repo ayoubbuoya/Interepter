@@ -1,4 +1,5 @@
 from DataTypes.function import Function
+from DataTypes.string import String
 from Lexer.lexer import Lexer
 from Parser.parser import Parser
 from Errors.errors import *
@@ -53,6 +54,8 @@ class Interepter:
             return self.visit_func_def_node(node, context)
         elif node_type == "CallFuncNode":
             return self.visit_call_func_node(node, context)
+        elif node_type == "StringNode":
+            return self.visit_string_node(node, context)
         else:
             return self.no_visit(node, context)
 
@@ -251,6 +254,12 @@ class Interepter:
             return res
 
         return res.success(value)
+
+    def visit_string_node(self, node, context):
+        value = String(node.tok.value)
+        value.set_context(context)
+        value.set_pos(node.start_pos, node.end_pos)
+        return RTResult().success(value)
 
     def no_visit(self, node, context):
         raise Exception(f"No Visit {type(node).__name__} Undedined")

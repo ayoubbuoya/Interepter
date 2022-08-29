@@ -40,7 +40,9 @@ COMMA_T = "COMMA"
 COLON_T = "COLON"
 R_CURLY_BRACK_T = "R CURLY BRACKET"
 L_CURLY_BRACK_T = "L CURLY BRACKET"
-# ARROW_T = "ARROW_T" # -
+
+# String Tokens
+STRING_T = "STRING"
 
 
 # kEYWORDS
@@ -61,3 +63,4 @@ KEYWORDS = [
     "step",
     "func",
 ]
+

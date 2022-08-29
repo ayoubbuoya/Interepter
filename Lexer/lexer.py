@@ -108,6 +108,9 @@ class Lexer:
             elif self.current == "}":
                 tokens.append(Token(R_CURLY_BRACK_T, start_pos=self.pos))
                 self.next()
+            # strings
+            elif self.current == '"':
+                tokens.append(self.get_string())
             else:
                 # raise char error
                 err_start_pos = self.pos.copy_pos()
@@ -119,6 +122,30 @@ class Lexer:
         tokens.append(Token(EOF_T, start_pos=self.pos))
 
         return tokens, None
+
+    def get_string(self):
+        start_pos = self.pos.copy_pos()
+        string = ""
+        escape_char = False
+        self.next()
+        escape_chars = {
+            "n": "\n",
+            "t": "\t"
+        }
+        while self.current != None and (self.current != '"' or escape_char):
+            if escape_char:
+                # current 1 for geting value from dict ; the second one is the return value ig not exist in dict
+                string += escape_chars.get(self.current, self.current)
+            else:
+                if self.current == "\\":
+                    escape_char = True
+                else:
+                    string += self.current
+            self.next()
+            escape_char = False
+
+        self.next()
+        return Token(STRING_T, string, start_pos, self.pos)
 
     def get_great_than_tok(self):
         start_pos = self.pos.copy_pos()
