@@ -1,5 +1,6 @@
+import math
 from DataTypes.number import Number
-from DataTypes.function import Function
+from DataTypes.function import *
 from DataTypes.string import String
 from DataTypes.list import List
 from Lexer.lexer import Lexer
@@ -142,6 +143,7 @@ class Interepter:
             ))
         value = value.copy()
         value.set_pos(node.start_pos, node.end_pos)
+        value.set_context(context)
         return res.success(value)
 
     def visit_var_assign_node(self, node, context):
@@ -264,6 +266,9 @@ class Interepter:
         value = res.register(val_to_call.execute(args))
         if res.err:
             return res
+        value = value.copy()
+        value.set_pos(node.start_pos, node.end_pos)
+        value.set_context(context)
 
         return res.success(value)
 
@@ -312,9 +317,21 @@ class Vars:
 
 # define default vars
 default_vars = Vars()
-default_vars.set_var("null", Number(0))
-default_vars.set_var("true", Number(1))
-default_vars.set_var("false", Number(0))
+default_vars.set_var("null", Number.null)
+default_vars.set_var("true", Number.true)
+default_vars.set_var("false", Number.false)
+default_vars.set_var("math_pi", Number(math.pi))
+default_vars.set_var("affichi", BuiltInFunction.affichi)
+default_vars.set_var("a9ra", BuiltInFunction("input"))
+default_vars.set_var("a9ra_3dad", BuiltInFunction("input_int"))
+default_vars.set_var("clear", BuiltInFunction("clear"))
+default_vars.set_var("is_number", BuiltInFunction("is_number"))
+default_vars.set_var("is_stringf", BuiltInFunction("is_string"))
+default_vars.set_var("is_function", BuiltInFunction("is_function"))
+default_vars.set_var("is_list", BuiltInFunction("is_list"))
+default_vars.set_var("append", BuiltInFunction("append"))
+default_vars.set_var("extend", BuiltInFunction("extend"))
+default_vars.set_var("pop", BuiltInFunction("pop"))
 
 
 def run(instruction, file_name="<stdin>"):

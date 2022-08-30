@@ -60,18 +60,16 @@
 
 ###### &emsp; - Lists :
 
-###### &emsp; &emsp; lang >> [ 1, 2, 3 ] + 5
+###### &emsp; &emsp; lang >> append([ 1, 2, 3 ] , 5)
 
 ###### &emsp; &emsp; [1, 2, 3, 5]
 
-###### &emsp; &emsp; lang >> [ 1, 2, 3] + [ 5, 4, 6 ]
+###### &emsp; &emsp; lang >> extend([ 1, 2, 3] , [ 5, 4, 6 ])
 
 ###### &emsp; &emsp; [1, 2, 3, 5, 4, 6]
 
-###### &emsp; &emsp; lang >> [1, 2, 3] - 1
+###### &emsp; &emsp; lang >> pop([1, 2, 3] , 1)
 
 ###### &emsp; &emsp; [1, 3]
 
-###### &emsp; &emsp; lang >> [1, 2, 3] / 2
-
-###### &emsp; &emsp; 3
+###### &emsp; -Some Built-In Functions : is_number(num), a9ra(), a9ra_3dad(), is_function(func), is_string(string), clear(), affichi(msg), ... 

@@ -48,7 +48,7 @@ class List(Value):
             return None, Value.illegal_operation(self, other)
 
     def copy(self):
-        copy = List(self.elements[:])
+        copy = List(self.elements)
         copy.set_pos(self.start_pos, self.end_pos)
         copy.set_context(self.context)
         return copy
