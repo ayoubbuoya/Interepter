@@ -1,4 +1,4 @@
-# Interepter
+# My Personal Programing Lang
 
 ### It is a part of my programming lang interepter.
 
